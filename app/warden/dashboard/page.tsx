@@ -30,38 +30,42 @@ async function getWardenData(): Promise<{ pendingRequests: PendingRequest[] }> {
   const { data: { user }, error: userError } = await supabase.auth.getUser()
   if (userError || !user) redirect('/login')
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const [profileRes, requestsRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('requests')
+      .select(`
+        id,
+        reason,
+        destination,
+        expected_departure,
+        expected_return,
+        emergency,
+        student_id,
+        students!inner (
+          name,
+          roll_number,
+          room_number,
+          block_name,
+          parent_name,
+          parent_phone,
+          parent_email,
+          phone_number
+        )
+      `)
+      .eq('status', 'pending_warden')
+      .order('emergency', { ascending: false })
+      .order('expected_departure', { ascending: true })
+  ])
 
-  if (profileError || !profile || (profile as any).role !== 'warden') redirect('/login')
+  const profile = profileRes.data
+  if (profileRes.error || !profile || (profile as any).role !== 'warden') redirect('/login')
 
-  const { data: pendingRequests, error: requestsError } = await supabase
-    .from('requests')
-    .select(`
-      id,
-      reason,
-      destination,
-      expected_departure,
-      expected_return,
-      emergency,
-      student_id,
-      students!inner (
-        name,
-        roll_number,
-        room_number,
-        block_name,
-        parent_name,
-        parent_phone,
-        parent_email,
-        phone_number
-      )
-    `)
-    .eq('status', 'pending_warden')
-    .order('emergency', { ascending: false })
-    .order('expected_departure', { ascending: true })
+  const { data: pendingRequests, error: requestsError } = requestsRes
 
   if (requestsError) {
     console.error('Error fetching pending requests:', requestsError)
