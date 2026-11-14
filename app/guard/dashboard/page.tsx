@@ -160,22 +160,10 @@ export default function GuardDashboard() {
             setScanResult(scanData)
             setScanValid(true)
 
-            if (scanData.type === 'exit') {
-                pendingExitRef.current = scanData
-                setProcessing(false)
-                openFaceVerification()
-            } else {
-                // Return — process immediately via server action
-                const res = await processReturnAction(scanData.outpass.id, scanData.request.id)
-                console.log('[Guard] processReturn result:', JSON.stringify(res))
-                if (!res.success) {
-                    setScanError(res.error || 'Failed to process return')
-                    setScanValid(false)
-                }
-                setProcessing(false)
-                await refreshLists()
-                // Don't auto-reset — let user see result and click "Scan Next"
-            }
+            // Require Face Verification for BOTH Exit and Return
+            pendingExitRef.current = scanData
+            setProcessing(false)
+            openFaceVerification()
         } catch (err: any) {
             console.error('[Guard] handleScan error:', err)
             setScanError(err?.message || 'Unexpected error during scan')
@@ -197,6 +185,25 @@ export default function GuardDashboard() {
             setScanError(res.error || 'Failed to process exit')
         }
         await refreshLists()
+    }
+
+    // ── return processing (via server action) ────────────────────────────────
+    async function doReturn(result: ScanResult) {
+        const res = await processReturnAction(result.outpass.id, result.request.id)
+        if (!res.success) {
+            setScanError(res.error || 'Failed to process return')
+            setScanValid(false)
+        }
+        await refreshLists()
+    }
+
+    // ── commit gate action after face verification ───────────────────────────
+    async function commitGateAction(result: ScanResult) {
+        if (result.type === 'exit') {
+            await doExit(result)
+        } else {
+            await doReturn(result)
+        }
     }
 
     // ── manual return ────────────────────────────────────────────────────────
@@ -279,11 +286,11 @@ export default function GuardDashboard() {
 
             if (dist <= 0.6) {
                 setFaceStatus('success')
-                setFaceMsg('Identity verified! Clearing for exit...')
+                setFaceMsg(`Identity verified! Recording ${result.type === 'exit' ? 'exit' : 'return'}...`)
                 setTimeout(async () => {
                     stopCamera(); setShowFace(false)
                     setProcessing(true)
-                    await doExit(result)
+                    await commitGateAction(result)
                     setProcessing(false)
                     setTimeout(resetScanner, 3000)
                 }, 2000)
@@ -296,11 +303,11 @@ export default function GuardDashboard() {
             const hasTemplate = !!result.student.face_descriptor
             if (hasTemplate) {
                 setFaceStatus('success')
-                setFaceMsg('Face scan complete (simulation). Clearing for exit...')
+                setFaceMsg(`Face scan complete (simulation). Recording ${result.type === 'exit' ? 'exit' : 'return'}...`)
                 setTimeout(async () => {
                     stopCamera(); setShowFace(false)
                     setProcessing(true)
-                    await doExit(result)
+                    await commitGateAction(result)
                     setProcessing(false)
                     setTimeout(resetScanner, 3000)
                 }, 2000)
@@ -316,7 +323,7 @@ export default function GuardDashboard() {
         if (!result) return
         stopCamera(); setShowFace(false)
         setProcessing(true)
-        await doExit(result)
+        await commitGateAction(result)
         setProcessing(false)
         setScanValid(true)
         setTimeout(resetScanner, 3000)
@@ -458,7 +465,7 @@ export default function GuardDashboard() {
                             <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
                                 <li>1st scan / roll number verify = exit (student leaving)</li>
                                 <li>2nd scan / roll number verify = return (student entering)</li>
-                                <li>Face verification required for exits</li>
+                                <li>Face verification required for both exits & returns</li>
                             </ul>
                         </div>
                     </div>
@@ -555,11 +562,13 @@ export default function GuardDashboard() {
                         <div className="px-5 py-4 border-b border-gray-800 flex justify-between items-center">
                             <div>
                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-[10px] font-bold bg-green-900 text-green-300 border border-green-700 px-2 py-0.5 rounded-full">✅ QR Verified</span>
+                                    <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full ${pendingExitRef.current.type === 'exit' ? 'bg-green-900 text-green-300 border-green-700' : 'bg-blue-900 text-blue-300 border-blue-700'}`}>
+                                        {pendingExitRef.current.type === 'exit' ? '🟢 Exit Scan' : '🔵 Return Scan'}
+                                    </span>
                                     <span className="text-gray-600 text-xs">→</span>
-                                    <span className="text-[10px] font-bold bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full animate-pulse">👁 Face Scan</span>
+                                    <span className="text-[10px] font-bold bg-blue-900 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full animate-pulse">👁 Face Verification</span>
                                 </div>
-                                <h3 className="text-base font-bold">Identity Verification</h3>
+                                <h3 className="text-base font-bold">{pendingExitRef.current.type === 'exit' ? 'Exit Verification' : 'Return Verification'}</h3>
                             </div>
                             <button onClick={abortFace} className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800">
                                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
