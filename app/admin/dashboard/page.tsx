@@ -55,12 +55,13 @@ async function getAdminData(): Promise<{ stats: DashboardStats; pendingRequests:
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
 
-  // Fetch stats
+  // Fetch stats and pending requests concurrently in parallel
   const [
     { count: totalRequestsToday },
     { count: pendingApprovals },
     { count: studentsOutside },
-    { count: lateReturns }
+    { count: lateReturns },
+    { data: pendingRequests, error: requestsError }
   ] = await Promise.all([
     supabase
       .from('requests')
@@ -78,28 +79,26 @@ async function getAdminData(): Promise<{ stats: DashboardStats; pendingRequests:
     supabase
       .from('requests')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'overdue')
+      .eq('status', 'overdue'),
+    supabase
+      .from('requests')
+      .select(`
+        id,
+        reason,
+        expected_departure,
+        created_at,
+        emergency,
+        student_id,
+        students!inner (
+          name,
+          room_number,
+          block_name
+        )
+      `)
+      .eq('status', 'pending_admin')
+      .order('emergency', { ascending: false })
+      .order('created_at', { ascending: true })
   ])
-
-  // Fetch pending requests with student details
-  const { data: pendingRequests, error: requestsError } = await supabase
-    .from('requests')
-    .select(`
-      id,
-      reason,
-      expected_departure,
-      created_at,
-      emergency,
-      student_id,
-      students!inner (
-        name,
-        room_number,
-        block_name
-      )
-    `)
-    .eq('status', 'pending_admin')
-    .order('emergency', { ascending: false })
-    .order('created_at', { ascending: true })
 
   if (requestsError) {
     console.error('Error fetching pending requests:', requestsError)
