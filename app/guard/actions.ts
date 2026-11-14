@@ -296,13 +296,11 @@ export async function loadOutsideAction() {
 export async function loadActivityAction() {
   try {
     const db = createAdminClient()
-    const today = new Date(); today.setHours(0, 0, 0, 0)
     const { data, error } = await (db as any)
       .from('homebook')
       .select('id, out_time, in_time, created_at, students(name,roll_number,room_number,block_name)')
-      .gte('created_at', today.toISOString())
       .order('created_at', { ascending: false })
-      .limit(20)
+      .limit(50)
 
     if (error) return { success: false, error: error.message }
     return { success: true, data: data || [] }
