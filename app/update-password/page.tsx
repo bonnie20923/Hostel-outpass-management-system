@@ -17,16 +17,63 @@ export default function UpdatePasswordPage() {
   const [sessionReady, setSessionReady] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
+  const [sessionChecking, setSessionChecking] = useState(true)
+
   useEffect(() => {
-    // After the auth callback redirects here, Supabase should have a session
-    // from the magic link token. Check that session exists.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+    let isMounted = true
+
+    // 1. Listen for Supabase auth state change (e.g. PASSWORD_RECOVERY event or hash token processing)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!isMounted) return
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         setSessionReady(true)
-      } else {
-        setError('Invalid or expired reset link. Please request a new one.')
+        setSessionChecking(false)
+        setError('')
       }
     })
+
+    // 2. Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return
+      if (session) {
+        setSessionReady(true)
+        setSessionChecking(false)
+      } else {
+        // 3. If there is a code in the URL, try client-side exchange
+        const params = new URLSearchParams(window.location.search)
+        const code = params.get('code')
+        if (code) {
+          supabase.auth.exchangeCodeForSession(code).then(({ data, error: exchangeError }) => {
+            if (!isMounted) return
+            if (data?.session && !exchangeError) {
+              setSessionReady(true)
+              setSessionChecking(false)
+              setError('')
+            } else {
+              setSessionChecking(false)
+              setError('Invalid or expired reset link. Please request a new one.')
+            }
+          })
+        } else {
+          // Give auth listener a brief moment to process any hash tokens
+          setTimeout(() => {
+            if (!isMounted) return
+            setSessionChecking(false)
+            setSessionReady((ready) => {
+              if (!ready) {
+                setError('Invalid or expired reset link. Please request a new one.')
+              }
+              return ready
+            })
+          }, 1200)
+        }
+      }
+    })
+
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -109,6 +156,17 @@ export default function UpdatePasswordPage() {
                 Password updated successfully! Redirecting to login...
               </span>
             </div>
+          </div>
+        )}
+
+        {/* Loading Verification */}
+        {sessionChecking && !sessionReady && !error && (
+          <div className="py-8 text-center text-sm text-gray-500 flex flex-col items-center justify-center space-y-3">
+            <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p>Verifying reset link...</p>
           </div>
         )}
 
