@@ -39,7 +39,7 @@ export default function LoginPage() {
         // Look up student by roll number to get email
         const { data: student, error: studentError } = await supabase
           .from('students')
-          .select('email, user_id')
+          .select('email')
           .eq('roll_number', rollNumber.trim())
           .single()
 
@@ -51,19 +51,6 @@ export default function LoginPage() {
         }
 
         loginEmail = student.email
-
-        // Get the associated profile to ensure role matches
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', student.user_id)
-          .single()
-
-        if (profileError || !profile || profile.role !== 'student') {
-          setError('Account not properly configured. Please contact admin.')
-          setLoading(false)
-          return
-        }
       } else {
         // For staff, email is required
         if (!email.trim()) {
@@ -130,8 +117,7 @@ export default function LoginPage() {
         guard: '/guard/dashboard',
       }
 
-      router.push(dashboards[role])
-      router.refresh() // Refresh to update middleware session
+      window.location.href = dashboards[role]
 
     } catch (err) {
       console.error('Login error:', err)
