@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f9fafb;
+  --foreground: #111827;
+  --font-geist-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Ensure all form inputs on light backgrounds have dark, readable text */
+input, select, textarea {
+  color: #111827;
+}
+
+/* Guard portal and dark theme inputs MUST have bright white readable text */
+.bg-gray-900 input,
+.bg-gray-800 input,
+.bg-gray-950 input,
+input.text-white,
+input[class*="text-white"],
+textarea.text-white {
+  color: #ffffff !important;
+}
+
+/* Ensure placeholder text is clearly visible */
+input::placeholder, textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Ensure date-time pickers render with light/high-contrast controls */
+input[type="date"], input[type="datetime-local"] {
+  color-scheme: light;
+}
+
+/* Mobile touch improvements */
+button, [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* removes 300ms tap delay on mobile */
+}
+
+/* Minimum touch target size for accessibility */
+button {
+  min-height: 44px;
+}
+
+/* Smooth scrolling on iOS */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent text size adjustment on orientation change */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
