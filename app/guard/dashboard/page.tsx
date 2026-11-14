@@ -37,9 +37,27 @@ interface ScanResult {
 type FaceStatus = 'idle' | 'loading' | 'scanning' | 'success' | 'failed' | 'no_template'
 type PageView = 'scanner' | 'outside' | 'activity'
 
+function parseUtcDate(dateStr: string | null | undefined): Date | null {
+    if (!dateStr) return null
+    const trimmed = dateStr.trim()
+    // If the database stripped the Z/offset, append Z so JavaScript parses it as UTC
+    if (!trimmed.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+        return new Date(trimmed + 'Z')
+    }
+    return new Date(trimmed)
+}
+
+function formatTime(dateStr: string | null | undefined): string {
+    const d = parseUtcDate(dateStr)
+    if (!d || isNaN(d.getTime())) return '—'
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
 function timeOutside(ts: string | null) {
     if (!ts) return 'N/A'
-    const diff = Date.now() - new Date(ts).getTime()
+    const d = parseUtcDate(ts)
+    if (!d || isNaN(d.getTime())) return 'N/A'
+    const diff = Math.max(0, Date.now() - d.getTime())
     const m = Math.floor(diff / 60000)
     const h = Math.floor(m / 60)
     return h > 0 ? `${h}h ${m % 60}m` : `${m}m`
@@ -514,9 +532,9 @@ export default function GuardDashboard() {
                                         <div className="min-w-0 flex-1">
                                             <p className="font-semibold text-sm truncate">{item.students?.name}</p>
                                             <p className="text-xs text-gray-400 truncate">{item.students?.roll_number} · {item.students?.block_name}-{item.students?.room_number}</p>
-                                            <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5">
-                                                Out: {item.out_time ? new Date(item.out_time).toLocaleTimeString() : '—'}
-                                                {item.in_time && <> · In: {new Date(item.in_time).toLocaleTimeString()}</>}
+                                            <p className="text-[11px] sm:text-xs text-gray-400 mt-0.5">
+                                                Out: <span className="text-gray-200 font-medium">{formatTime(item.out_time)}</span>
+                                                {item.in_time && <> · In: <span className="text-gray-200 font-medium">{formatTime(item.in_time)}</span></>}
                                             </p>
                                         </div>
                                         <span className={`text-[11px] sm:text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0 ${item.in_time ? 'bg-green-900/60 text-green-300' : 'bg-yellow-900/60 text-yellow-300'}`}>
