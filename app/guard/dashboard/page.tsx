@@ -105,13 +105,18 @@ export default function GuardDashboard() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) { router.push('/login'); return }
 
-            const { data: profile } = await (supabase as any)
-                .from('profiles').select('role,name').eq('id', user.id).single()
+            const [profileRes, outside, activity] = await Promise.all([
+                (supabase as any).from('profiles').select('role,name').eq('id', user.id).single(),
+                loadOutsideAction(),
+                loadActivityAction()
+            ])
 
+            const profile = profileRes.data
             if (!profile || profile.role !== 'guard') { router.push('/login'); return }
 
             setGuardName(profile.name || 'Guard')
-            await refreshLists()
+            if (outside.success) setOutsideList(outside.data || [])
+            if (activity.success) setActivityList(activity.data || [])
         } catch { router.push('/login') }
         finally { setLoading(false) }
     }
